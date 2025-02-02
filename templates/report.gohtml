@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Exposed Subdomains &amp; Security Report</title>
+
+  <!-- Google Fonts: Russo One for headings, VT323 for code -->
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=VT323&display=swap" rel="stylesheet" />
+
+  <!-- Bootstrap 5 and DataTables CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.bootstrap5.min.css" />
+
+  <!-- jQuery UI CSS -->
+  <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css" />
+
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" />
+
+  <style>
+    /* ==============================
+       Global Variables & Typography 
+       ============================== */
+    :root {
+      --font-heading: 'Russo One', sans-serif;
+      --font-body: sans-serif;
+      --font-code: 'VT323', monospace;
+      --bg-dark: #121212;
+      --bg-panel: #1e1e1e;
+      --text-light: #ffffff;
+      --text-muted: #e0e0e0;
+      --accent-red: #d32f2f;
+      --accent-gold: #ffd700;
+      --transition-speed: 0.3s;
+      --table-header-bg: #262525;
+      --table-hover-bg: #121212;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-dark);
+      color: var(--text-muted);
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-heading);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ==============================
+       Animations & Overlays
+       ============================== */
+    .fade {
+      opacity: 0;
+      transition: opacity var(--transition-speed) ease-in-out;
+    }
+    .fade.in {
+      opacity: 1;
+    }
+    .loading-overlay,
+    .password-prompt {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1500;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: opacity var(--transition-speed) ease-in-out;
+    }
+    .loading-overlay {
+      background: rgba(0, 0, 0, 0.85);
+      color: var(--accent-gold);
+      font-size: 2rem;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .loading-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .password-prompt {
+      background: rgba(0, 0, 0, 0.95);
+      opacity: 1;
+    }
+    .password-box {
+      background: var(--bg-panel);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+      text-align: center;
+      width: 90%;
+      max-width: 400px;
+    }
+    .password-box input {
+      padding: 0.8rem;
+      width: 100%;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 1rem;
+    }
+    .password-box button {
+      padding: 0.8rem 2rem;
+      background: var(--accent-gold);
+      border: none;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background var(--transition-speed);
+    }
+    .password-box button:hover {
+      background: var(--accent-red);
+      color: #fff;
+    }
+    .error-message {
+      color: var(--accent-red);
+      margin-top: 1rem;
+      font-size: 1rem;
+    }
+
+    /* ==============================
+       Header, Navigation & Export Menu
+       ============================== */
+    header {
+      padding: 1rem;
+      background: var(--bg-panel);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 3px solid var(--accent-red);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+    .export-menu {
+      position: relative;
+    }
+    .export-btn {
+      background: var(--accent-red);
+      color: var(--text-muted);
+      padding: 0.8rem 1.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: transform var(--transition-speed);
+      border: none;
+    }
+    .export-btn:hover {
+      transform: scale(1.05);
+    }
+    .export-options {
+      position: absolute;
+      right: 0;
+      background: var(--bg-panel);
+      border-radius: 6px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      z-index: 1700;
+      display: none;
+    }
+    .export-options.show {
+      display: block;
+    }
+    .export-option {
+      padding: 0.8rem 1.5rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background var(--transition-speed);
+    }
+    .export-option:hover,
+    .export-option:focus {
+      background: var(--accent-red);
+      outline: none;
+    }
+
+    /* ==============================
+       Tab Navigation & Content
+       ============================== */
+    .tab-buttons {
+      margin: 1rem 0;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .tab-button {
+      padding: 0.5rem 1rem;
+      border: none;
+      background: var(--accent-red);
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background var(--transition-speed), transform var(--transition-speed);
+      color: var(--text-muted);
+    }
+    .tab-button:hover,
+    .tab-button:focus {
+      transform: translateY(-2px);
+      outline: 2px dashed var(--accent-gold);
+      outline-offset: 2px;
+    }
+    .tab-button.active {
+      background: var(--accent-gold);
+      color: var(--bg-dark);
+    }
+    .tab-content {
+      display: none;
+      opacity: 0;
+      transition: opacity var(--transition-speed) ease-in-out;
+    }
+    .tab-content.active {
+      display: block;
+      opacity: 1;
+    }
+
+    /* ==============================
+       DataTable & Panels Styling
+       ============================== */
+    #domain-table_wrapper {
+      background: var(--bg-panel);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    #domain-table thead th {
+      background: var(--table-header-bg);
+      color: var(--text-light);
+      border-bottom: 2px solid var(--accent-gold) !important;
+    }
+    #domain-table tbody tr:hover td {
+      background: var(--table-hover-bg) !important;
+    }
+    .raw-json {
+      background: var(--bg-panel);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      color: var(--text-light);
+      font-family: var(--font-code);
+      font-size: 0.9rem;
+    }
+    /* Copy button positioned next to Raw JSON heading */
+    #copyButton {
+      margin-left: 1rem;
+      padding: 0.4rem 0.8rem;
+      background: var(--accent-red);
+      border: none;
+      border-radius: 4px;
+      color: var(--text-light);
+      cursor: pointer;
+      transition: background var(--transition-speed);
+    }
+    #copyButton:hover {
+      background: var(--accent-gold);
+    }
+
+    /* Increase spacing for DataTables pagination buttons */
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+      margin: 0 0.3rem;
+      padding: 0.5rem 0.8rem;
+      border-radius: 4px;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+      background-color: var(--accent-gold);
+      color: var(--bg-dark);
+    }
+    /* Override link colors */
+    a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus {
+      color: var(--accent-red);
+      text-decoration: underline;
+    }
+    /* ==============================
+       Threat Summary Panel
+       ============================== */
+    .threat-summary {
+      background: var(--bg-panel);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      color: var(--text-light);
+    }
+    .threat-summary h4 {
+      color: var(--accent-gold);
+      margin-top: 0;
+    }
+    .threat-summary a {
+      color: var(--accent-red);
+      text-decoration: underline;
+    }
+    .threat-summary a:hover {
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay" role="alert" aria-live="assertive">
+    Loading...
+  </div>
+
+  <!-- Password Prompt Overlay -->
+  <div id="passwordPrompt" class="password-prompt" role="dialog" aria-modal="true" aria-labelledby="passwordPromptTitle">
+    <div class="password-box fade in">
+      <h2 id="passwordPromptTitle">Введите ключ дешифрования</h2>
+      <p>(Paste your decryption key below)</p>
+      <input type="password" id="password" placeholder="Enter decryption key" aria-label="Decryption key" />
+      <button id="unlockButton">Unlock Report</button>
+      <div id="errorMessage" class="error-message" role="alert"></div>
+    </div>
+  </div>
+
+  <!-- Main Report Content -->
+  <main id="reportContent" style="display: block; opacity: 1;" tabindex="-1">
+    <header>
+      <h1>Exposed Subdomains &amp; Security Report</h1>
+      <div class="export-menu">
+        <button class="export-btn" id="exportBtn" aria-haspopup="true" aria-expanded="false">
+          Export <i class="fa-solid fa-download" aria-hidden="true"></i>
+        </button>
+        <div id="exportOptions" class="export-options" role="menu">
+          <div class="export-option" tabindex="0" role="menuitem" data-export="csv">Export CSV</div>
+          <div class="export-option" tabindex="0" role="menuitem" data-export="json">Export JSON</div>
+          <div class="export-option" tabindex="0" role="menuitem" data-export="text">Export Text</div>
+          <div class="export-option" tabindex="0" role="menuitem" data-export="pdf">Export PDF</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="container my-3" role="navigation" aria-label="Main Tabs">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="subdomainsTab" aria-controls="subdomainsTab" aria-selected="true">
+          Exposed Subdomains
+        </button>
+        <button class="tab-button" data-tab="termTab" aria-controls="termTab" aria-selected="false">
+          Term Analysis
+        </button>
+        <button class="tab-button" data-tab="searchTab" aria-controls="searchTab" aria-selected="false">
+          Search &amp; Analysis
+        </button>
+        <button class="tab-button" data-tab="summaryTab" aria-controls="summaryTab" aria-selected="false">
+          Summary Statistics
+        </button>
+        <button class="tab-button" data-tab="threatTab" aria-controls="threatTab" aria-selected="false">
+          Threat Summary &amp; Remediation
+        </button>
+        <button class="tab-button" data-tab="rawTab" aria-controls="rawTab" aria-selected="false">
+          Raw Data
+        </button>
+      </div>
+    </nav>
+
+    <section class="container" aria-live="polite">
+      <!-- Tab: Exposed Subdomains (DataTable) -->
+      <div id="subdomainsTab" class="tab-content active" role="tabpanel">
+        <h3 class="text-center mb-3">Exposed Subdomains</h3>
+        <table id="domain-table" class="display" style="width:100%" aria-describedby="tableInstructions">
+          <caption id="tableInstructions" class="visually-hidden">
+            This table lists exposed subdomains, their root domain, and source(s).
+          </caption>
+          <thead>
+            <tr>
+              <th>Host</th>
+              <th>Root Domain</th>
+              <th>Sources</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Tab: Term Analysis (Chart) -->
+      <div id="termTab" class="tab-content" role="tabpanel">
+        <canvas id="termChart" aria-label="Term frequency chart" role="img"></canvas>
+      </div>
+
+      <!-- Tab: Search & Analysis -->
+      <div id="searchTab" class="tab-content" role="tabpanel">
+        <h3>Search Domains</h3>
+        <input type="text" id="searchInput" class="form-control mb-3" placeholder="Type to search..." aria-label="Search domains" />
+        <div id="searchResults" aria-live="polite"></div>
+      </div>
+
+      <!-- Tab: Summary Statistics -->
+      <div id="summaryTab" class="tab-content" role="tabpanel">
+        <h3>Summary Statistics</h3>
+        <ul id="summaryStats" class="list-group"></ul>
+      </div>
+
+      <!-- Tab: Threat Summary & Remediation -->
+      <div id="threatTab" class="tab-content" role="tabpanel">
+        <h3>Threat Summary &amp; Remediation</h3>
+        <div class="threat-summary">
+          <h4>Why Exposed Subdomains Are a Risk</h4>
+          <p>
+            Exposed subdomains can be a gateway for attackers to compromise an organization’s infrastructure.
+            These subdomains may be inadvertently misconfigured or forgotten, allowing malicious actors to:
+          </p>
+          <ul>
+            <li>Exploit vulnerabilities in legacy or supporting systems</li>
+            <li>Perform subdomain takeover attacks</li>
+            <li>Launch phishing or malware campaigns</li>
+            <li>Bypass security controls or create backdoors</li>
+          </ul>
+          <h4>Remediation Recommendations</h4>
+          <p>To mitigate these risks, organizations should:</p>
+          <ul>
+            <li>Regularly audit DNS records and identify all active subdomains</li>
+            <li>Implement strict access controls and monitor subdomains closely</li>
+            <li>Maintain robust patch management and vulnerability scanning</li>
+            <li>Deploy web application firewalls and subdomain takeover prevention measures</li>
+          </ul>
+          <p>For detailed guidance, please consult these resources:</p>
+          <ul>
+            <li>
+              <a href="https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final" target="_blank" rel="noopener">
+                NIST Special Publication 800-53 (Rev. 5)
+              </a>
+            </li>
+            <li>
+              <a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener">
+                OWASP Top Ten Web Application Security Risks
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Tab: Raw Data with Copy-to-Clipboard -->
+      <div id="rawTab" class="tab-content" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center">
+          <h3>Raw JSON Data</h3>
+          <button id="copyButton" class="btn" aria-label="Copy JSON to clipboard">
+            <i class="fas fa-copy"></i>
+          </button>
+        </div>
+        <pre id="rawJson" class="raw-json" tabindex="0"></pre>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==============================
+       External Libraries
+       ============================== -->
+  <!-- jQuery (required by DataTables) -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- jQuery UI -->
+  <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+  <!-- DataTables -->
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+  <!-- Chart.js for charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <!-- pdfmake for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+
+  <!-- ==============================
+       Main JavaScript
+       ============================== -->
+  <script>
+    // Template variables injected by Go (Base64-encoded)
+    const encryptedDataB64 = "{{encrypted_data}}";
+    const ivB64 = "{{iv}}";
+
+    let decryptedData = null;
+    let dataTable = null;
+
+    // Utility: Convert Base64 string to ArrayBuffer (removing extra whitespace)
+    const base64ToArrayBuffer = (base64) => {
+
+        // Remove all whitespace (spaces, newlines, etc.)
+        const cleanBase64 = base64.replace(/\s/g, '');
+        try {
+            const binaryString = window.atob(cleanBase64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        } catch (err) {
+            console.error("base64ToArrayBuffer error:", err, "Input string:", cleanBase64);
+            throw err;
+        }
+    };
+
+    // Utility: Decrypt data using Web Crypto API (AES-CBC)
+    async function decryptWithWebCrypto(keyB64, ivB64, dataB64) {
+      try {
+        const keyBuffer = base64ToArrayBuffer(keyB64);
+        const ivBuffer = base64ToArrayBuffer(ivB64);
+        const encryptedBuffer = base64ToArrayBuffer(dataB64);
+
+        // Import the key (assumed to be raw bytes for AES-CBC)
+        const cryptoKey = await window.crypto.subtle.importKey(
+          "raw",
+          keyBuffer,
+          { name: "AES-CBC" },
+          false,
+          ["decrypt"]
+        );
+
+        // Decrypt (Web Crypto automatically removes padding)
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+          { name: "AES-CBC", iv: ivBuffer },
+          cryptoKey,
+          encryptedBuffer
+        );
+        // Convert decrypted ArrayBuffer to string
+        const decoder = new TextDecoder();
+        return decoder.decode(decryptedBuffer);
+      } catch (err) {
+        console.error("WebCrypto decryption error:", err);
+        throw err;
+      }
+    }
+
+    function populateReport(data) {
+      console.log("Populating report with data:", data);
+
+      // Populate DataTable for Exposed Subdomains
+      if (data.domains && Array.isArray(data.domains)) {
+        data.domains.forEach(domain => {
+          console.log("Adding domain to DataTable:", domain);
+          dataTable.row.add([
+            domain.host || "",
+            domain.root_domain || "",
+            Array.isArray(domain.sources) ? domain.sources.join(", ") : domain.sources || ""
+          ]).draw(false);
+        });
+      } else {
+        console.warn("No 'domains' array found in data.");
+      }
+
+      // Build Term Frequency Chart if data available
+      if (data.term_freq_data && Array.isArray(data.term_freq_data)) {
+        const labels = data.term_freq_data.map(item => item.term);
+        const frequencies = data.term_freq_data.map(item => item.frequency);
+        const ctx = document.getElementById('termChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Term Frequency',
+              data: frequencies,
+              backgroundColor: 'rgba(211, 47, 47, 0.7)',
+              borderColor: 'rgba(255, 215, 0, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: { beginAtZero: true, ticks: { color: "#e0e0e0" }, grid: { color: "rgba(255,255,255,0.1)" } },
+              x: { ticks: { color: "#e0e0e0" }, grid: { color: "rgba(255,255,255,0.1)" } }
+            },
+            plugins: {
+              legend: { labels: { color: "#e0e0e0" } }
+            }
+          }
+        });
+      } else {
+        console.warn("No 'term_freq_data' found in data.");
+      }
+
+      // Update Raw JSON tab
+      document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+
+      // Update Summary Statistics tab
+      if (data.summary_stats) {
+        const statsElem = document.getElementById('summaryStats');
+        statsElem.innerHTML = "";
+        for (const [key, value] of Object.entries(data.summary_stats)) {
+          const label = key.replace("_", " ");
+          statsElem.innerHTML += `<li class="list-group-item bg-dark text-light">
+                                      <strong>${label}:</strong> ${value}
+                                    </li>`;
+        }
+      }
+
+      // Initialize search functionality
+      initSearch(data.domains || []);
+    }
+
+    // Initialize search on domains
+    function initSearch(domains) {
+      const searchInput = document.getElementById('searchInput');
+      const resultsDiv = document.getElementById('searchResults');
+      searchInput.addEventListener('keyup', function () {
+        const query = this.value.toLowerCase();
+        let resultsHTML = "";
+        const filtered = domains.filter(domain =>
+          domain.host.toLowerCase().includes(query) ||
+          domain.root_domain.toLowerCase().includes(query) ||
+          (Array.isArray(domain.sources) && domain.sources.join(" ").toLowerCase().includes(query))
+        );
+        if (filtered.length === 0) {
+          resultsHTML = "<p>No results found.</p>";
+        } else {
+          resultsHTML = "<ul class='list-group'>";
+          filtered.forEach(domain => {
+            resultsHTML += `<li class="list-group-item bg-dark text-light">
+                              <strong>Host:</strong> ${domain.host} <br>
+                              <strong>Root Domain:</strong> ${domain.root_domain} <br>
+                              <strong>Sources:</strong> ${Array.isArray(domain.sources) ? domain.sources.join(", ") : domain.sources}
+                            </li>`;
+          });
+          resultsHTML += "</ul>";
+        }
+        resultsDiv.innerHTML = resultsHTML;
+      });
+    }
+
+    // Toggle export options menu
+    function toggleExportOptions() {
+      const exportMenu = document.getElementById('exportOptions');
+      const btn = document.getElementById('exportBtn');
+      exportMenu.classList.toggle('show');
+      const expanded = exportMenu.classList.contains('show');
+      btn.setAttribute('aria-expanded', expanded);
+      if (expanded) {
+        document.addEventListener('click', closeExportOptions);
+      }
+    }
+    function closeExportOptions(event) {
+      const exportMenu = document.getElementById('exportOptions');
+      const btn = document.getElementById('exportBtn');
+      if (!exportMenu.contains(event.target) && event.target !== btn) {
+        exportMenu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', closeExportOptions);
+      }
+    }
+
+    // Export functions
+    function downloadFile(data, filename, type) {
+      const blob = new Blob([data], { type });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+    function exportCSV() {
+      if (!decryptedData || !decryptedData.domains) return;
+      const csvRows = [["Host", "Root Domain", "Sources"]];
+      decryptedData.domains.forEach(domain => {
+        csvRows.push([
+          `"${domain.host}"`,
+          `"${domain.root_domain}"`,
+          `"${Array.isArray(domain.sources) ? domain.sources.join(", ") : domain.sources}"`
+        ]);
+      });
+      downloadFile(csvRows.map(r => r.join(",")).join("\n"), "report.csv", "text/csv");
+    }
+    function exportJSON() {
+      if (!decryptedData) return;
+      downloadFile(JSON.stringify(decryptedData, null, 2), "report.json", "application/json");
+    }
+    function exportText() {
+      if (!decryptedData || !decryptedData.domains) return;
+      const textRows = decryptedData.domains.map(domain => domain.host);
+      downloadFile(textRows.join(", "), "report.txt", "text/plain");
+    }
+    function exportPDF() {
+      if (!decryptedData || !decryptedData.domains) return;
+      const docDefinition = {
+        content: [
+          { text: 'Exposed Subdomains & Security Report', style: 'header' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', '*', '*'],
+              body: [
+                ['Host', 'Root Domain', 'Sources'],
+                ...decryptedData.domains.map(domain => [
+                  domain.host,
+                  domain.root_domain,
+                  Array.isArray(domain.sources) ? domain.sources.join(", ") : domain.sources
+                ])
+              ]
+            }
+          }
+        ]
+      };
+      pdfMake.createPdf(docDefinition).download('report.pdf');
+    }
+    // Handler for export option clicks
+    document.querySelectorAll('.export-option').forEach(option => {
+      option.addEventListener('click', function () {
+        const exportType = this.getAttribute('data-export');
+        if (exportType === 'csv') exportCSV();
+        else if (exportType === 'json') exportJSON();
+        else if (exportType === 'text') exportText();
+        else if (exportType === 'pdf') exportPDF();
+        document.getElementById('exportOptions').classList.remove('show');
+      });
+    });
+
+    // Tab switching functionality
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
+      document.querySelector(`.tab-button[data-tab="${tabId}"]`).setAttribute('aria-selected', 'true');
+      document.getElementById(tabId).classList.add('active');
+    }
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchTab(btn.getAttribute('data-tab'));
+      });
+    });
+
+    // Copy-to-clipboard functionality using modern API
+    document.getElementById('copyButton').addEventListener('click', async function () {
+      const rawText = document.getElementById('rawJson').innerText;
+      try {
+        await navigator.clipboard.writeText(rawText);
+        this.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => { this.innerHTML = '<i class="fas fa-copy"></i>'; }, 2000);
+      } catch (err) {
+        console.error('Copy failed', err);
+      }
+    });
+
+    // Main decryption & initialization flow
+    async function decryptData() {
+      const errorMessageElem = document.getElementById('errorMessage');
+      errorMessageElem.textContent = "";
+      document.getElementById('loadingOverlay').classList.add('visible');
+
+      const userKeyB64 = document.getElementById('password').value.trim();
+      if (!userKeyB64) {
+        errorMessageElem.textContent = "Please enter a decryption key.";
+        document.getElementById('loadingOverlay').classList.remove('visible');
+        return;
+      }
+
+      try {
+        const decryptedText = await decryptWithWebCrypto(userKeyB64, ivB64, encryptedDataB64);
+        if (!decryptedText) throw new Error("Decryption returned an empty string");
+        
+        // Parse the decrypted JSON string into an object
+        decryptedData = JSON.parse(decryptedText);
+
+        // Call UI population functions
+        populateReport(decryptedData);
+
+        // Hide the password prompt and display the report content
+        document.getElementById('passwordPrompt').style.display = 'none';
+        document.getElementById('reportContent').style.display = 'block';
+        document.getElementById('reportContent').classList.add('visible')
+
+      } catch (e) {
+        console.error("Decryption error:", e);
+        errorMessageElem.textContent = "Incorrect decryption key or corrupted data.";
+      } finally {
+        document.getElementById('loadingOverlay').classList.remove('visible');
+      }
+    }
+
+
+    // Event listener for unlocking the report
+    document.getElementById('unlockButton').addEventListener('click', decryptData);
+
+    // Initialize DataTable (using jQuery as required by DataTables)
+    $(document).ready(function () {
+      dataTable = $('#domain-table').DataTable({
+        responsive: true,
+        pageLength: 10,
+        autoWidth: false,
+        columnDefs: [{
+          targets: 2,
+          render: function (data) {
+            return Array.isArray(data) ? data.join(", ") : data;
+          }
+        }]
+      });
+      // Make any draggable elements (if needed)
+      $(".draggable").draggable();
+    });
+
+    // Toggle export options on export button click
+    document.getElementById('exportBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleExportOptions();
+    });
+  </script>
+</body>
+</html>
