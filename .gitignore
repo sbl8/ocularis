@@ -2,3 +2,16 @@ bin/
 .env
 *.log
 *.key
+# build artifacts
+build/
+# dependencies
+vendor/
+# IDEs and editors
+.vscode/
+# OS-specific files
+.DS_Store
+# temporary files
+*.tmp
+*.bak
+# test data
+test/data/*

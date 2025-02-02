@@ -48,20 +48,20 @@ func main() {
 
 	case "generate":
 		genCmd := flag.NewFlagSet("generate", flag.ExitOnError)
-		dataFile := genCmd.String("data", "", "Path to input JSON data file")
+		dataFile := genCmd.String("input", "", "Path to input JSON data file")
 		outputFile := genCmd.String("output", "", "Path to output HTML report file")
 		templateFile := genCmd.String("template", "", "Path to HTML template file")
 		keyStr := genCmd.String("key", "", "Base64-encoded encryption key (optional)")
 		genCmd.Parse(os.Args[2:])
 
 		if *dataFile == "" || *outputFile == "" || *templateFile == "" {
-			fmt.Println("Flags -data, -output, and -template are required for generate.")
+			fmt.Println("Flags -input, -output, and -template are required for generate.")
 			usage()
 		}
 
 		var data []core.Entry
 		if _, err := os.Stat(*dataFile); os.IsNotExist(err) {
-			fmt.Printf("Data file '%s' not found. Generating sample data.\n", *dataFile)
+			fmt.Printf("Input data file '%s' not found. Generating sample data.\n", *dataFile)
 			data = inputs.GenerateSampleData()
 		} else {
 			var err error
