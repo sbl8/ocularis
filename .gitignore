@@ -15,3 +15,4 @@ vendor/
 *.bak
 # test data
 test/data/*
+.aider*
