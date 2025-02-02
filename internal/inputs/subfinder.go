@@ -8,24 +8,6 @@ import (
 	"ocularis/internal/core"
 )
 
-// internal/inputs/subfinder.go
-type SubfinderEntry struct {
-	Host     string   `json:"host"`     // Matches Subfinder's "host" field
-	Root     string   `json:"root"`     // Subfinder's "root" instead of "input"
-	Sources  []string `json:"sources"`  // Already correct
-	IP       string   `json:"ip"`       // Additional Subfinder field
-	Provider string   `json:"provider"` // Additional Subfinder field
-}
-
-func (s *SubfinderEntry) ToCoreEntry() core.Entry {
-	return core.Entry{
-		Host:    s.Host,
-		Input:   s.Root, // Map "root" to "Input"
-		Sources: s.Sources,
-		// Add other fields as needed
-	}
-}
-
 // LoadSubfinderData loads Subfinder JSON data from a file.
 func LoadSubfinderData(filePath string) ([]core.Entry, error) {
 	content, err := os.ReadFile(filePath)
